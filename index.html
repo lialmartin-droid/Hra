@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Death Knight Empires – World Map</title>
+<style>
+:root{
+  --bg:#07101d; --panel:#0f172a; --panel2:#172033; --line:#2e4567;
+  --text:#e5eefc; --muted:#9fb4d8; --blue:#2563eb; --red:#dc2626;
+  --green:#16a34a; --purple:#7c3aed; --gold:#facc15; --wood:#b7793f;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:radial-gradient(circle at top,#172554 0,#07101d 55%);color:var(--text);font-family:Arial,Helvetica,sans-serif;overflow:hidden}
+.app{height:100vh;display:flex;flex-direction:column}
+.top{
+  z-index:10;background:rgba(7,16,29,.97);border-bottom:1px solid var(--line);
+  box-shadow:0 8px 20px rgba(0,0,0,.35)
+}
+.title{text-align:center;padding:9px;font-size:20px;font-weight:900;color:#dbeafe;text-shadow:0 0 12px #2563eb}
+.resources{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;padding:0 8px 8px}
+.res{background:#101a2d;border:1px solid #2e4567;border-radius:12px;text-align:center;padding:6px 2px;font-size:11px;color:var(--muted)}
+.res b{display:block;color:white;font-size:15px}
+.main{flex:1;display:grid;grid-template-columns:1fr 340px;min-height:0}
+.mapViewport{position:relative;overflow:auto;background:#07101d}
+.world{
+  position:relative;width:1700px;height:1100px;min-width:1700px;min-height:1100px;
+  background:
+    radial-gradient(circle at 20% 18%,rgba(96,165,250,.10),transparent 18%),
+    radial-gradient(circle at 70% 22%,rgba(239,68,68,.12),transparent 19%),
+    radial-gradient(circle at 42% 72%,rgba(34,197,94,.10),transparent 18%),
+    linear-gradient(135deg,#0b1728,#101827 55%,#08111f);
+}
+.sea{
+  position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse at 8% 45%,rgba(14,165,233,.22),transparent 22%),
+    radial-gradient(ellipse at 96% 55%,rgba(14,165,233,.16),transparent 28%);
+  pointer-events:none
+}
+.mountains,.forest,.swamp,.snow{
+  position:absolute;border-radius:45%;opacity:.55;pointer-events:none;filter:blur(.2px)
+}
+.mountains{background:rgba(100,116,139,.35);border:1px solid rgba(148,163,184,.25)}
+.forest{background:rgba(22,101,52,.38);border:1px solid rgba(34,197,94,.25)}
+.swamp{background:rgba(77,124,15,.24);border:1px solid rgba(132,204,22,.18)}
+.snow{background:rgba(186,230,253,.16);border:1px solid rgba(125,211,252,.18)}
+.road{
+  position:absolute;height:12px;background:rgba(120,83,45,.38);border-top:1px solid rgba(255,255,255,.08);
+  border-bottom:1px solid rgba(0,0,0,.4);transform-origin:left center;border-radius:20px;pointer-events:none
+}
+.region{
+  position:absolute;width:150px;height:112px;transform:translate(-50%,-50%);
+  border-radius:42% 58% 49% 51%/48% 39% 61% 52%;
+  border:3px solid rgba(255,255,255,.22);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  text-align:center;padding:8px;box-shadow:0 10px 22px rgba(0,0,0,.45), inset 0 0 28px rgba(255,255,255,.05);
+  transition:.15s transform,.15s filter
+}
+.region:hover{transform:translate(-50%,-50%) scale(1.06);filter:brightness(1.15)}
+.region.player{background:linear-gradient(180deg,#1d4ed8,#1e3a8a);border-color:#93c5fd}
+.region.neutral{background:linear-gradient(180deg,#4b5563,#1f2937);border-color:#9ca3af}
+.region.red{background:linear-gradient(180deg,#dc2626,#7f1d1d);border-color:#fca5a5}
+.region.green{background:linear-gradient(180deg,#16a34a,#14532d);border-color:#86efac}
+.region.purple{background:linear-gradient(180deg,#7c3aed,#3b0764);border-color:#ddd6fe}
+.region.ally{box-shadow:0 0 0 4px rgba(34,197,94,.35),0 10px 22px rgba(0,0,0,.45)}
+.region.frontier{box-shadow:0 0 0 4px rgba(250,204,21,.38),0 10px 22px rgba(0,0,0,.45)}
+.region.locked{filter:grayscale(.35) brightness(.72)}
+.rName{font-weight:900;font-size:13px;text-shadow:0 1px 2px #000}
+.rMeta{font-size:11px;color:#dbeafe;margin-top:4px}
+.capital{font-size:22px;display:block}
+.side{
+  overflow:auto;background:rgba(7,16,29,.96);border-left:1px solid var(--line);padding:10px
+}
+.card{background:linear-gradient(180deg,#172033,#0f172a);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:10px}
+h2,h3{margin:0 0 9px;color:#a6d8ff}
+.small{font-size:12px;color:var(--muted);line-height:1.35}
+.row{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.btn{
+  border:1px solid #3b5e8a;background:linear-gradient(180deg,#2563eb,#1e3a8a);
+  color:white;border-radius:12px;padding:9px 10px;font-weight:800;cursor:pointer;width:100%;margin-top:7px
+}
+.btn.red{background:linear-gradient(180deg,#dc2626,#7f1d1d)}
+.btn.green{background:linear-gradient(180deg,#16a34a,#14532d)}
+.btn.secondary{background:linear-gradient(180deg,#334155,#172033)}
+.btn:disabled{opacity:.45;filter:grayscale(1)}
+.badge{display:inline-block;border:1px solid #3b5e8a;border-radius:99px;padding:3px 7px;font-size:11px;margin:2px;background:#101827}
+.log{max-height:220px;overflow:auto;font-size:12px}
+.log div{border-bottom:1px solid rgba(255,255,255,.06);padding:5px 0}
+.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:10px}
+.tab{border:1px solid #344b70;background:#101827;color:var(--muted);border-radius:10px;padding:8px 2px;font-size:11px}
+.tab.active{background:#1e3a8a;color:white}
+.panel{display:none}
+.panel.active{display:block}
+.bar{height:10px;background:#0b1220;border:1px solid #31445f;border-radius:99px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,#2563eb,#7dd3fc)}
+.armyMarker{
+  position:absolute;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:#dbeafe;color:#0f172a;border:2px solid #60a5fa;box-shadow:0 0 14px rgba(125,211,252,.6);
+  transform:translate(-50%,-50%);z-index:4;transition:left 1s linear, top 1s linear
+}
+@media(max-width:850px){
+  body{overflow:auto}
+  .app{height:auto;min-height:100vh}
+  .main{display:block}
+  .mapViewport{height:62vh;border-bottom:1px solid var(--line)}
+  .side{border-left:0;max-height:none}
+  .resources{grid-template-columns:repeat(5,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <div class="title">Death Knight Empires – skutečná mapa</div>
+    <div class="resources">
+      <div class="res">🪙 Zlato<b id="gold">0</b></div>
+      <div class="res">🪵 Dřevo<b id="wood">0</b></div>
+      <div class="res">⚔️ Armáda<b id="army">0</b></div>
+      <div class="res">🌍 Území<b id="lands">0</b></div>
+      <div class="res">📈 Příjem<b id="income">0</b></div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="mapViewport" id="viewport">
+      <div class="world" id="world">
+        <div class="sea"></div>
+        <div class="snow" style="left:70px;top:70px;width:520px;height:260px"></div>
+        <div class="forest" style="left:480px;top:650px;width:500px;height:310px"></div>
+        <div class="swamp" style="left:930px;top:610px;width:430px;height:280px"></div>
+        <div class="mountains" style="left:1030px;top:90px;width:520px;height:290px"></div>
+      </div>
+    </div>
+
+    <aside class="side">
+      <div class="tabs">
+        <button class="tab active" onclick="showPanel('region',this)">Území</button>
+        <button class="tab" onclick="showPanel('realm',this)">Říše</button>
+        <button class="tab" onclick="showPanel('diplo',this)">Diplomacie</button>
+        <button class="tab" onclick="showPanel('log',this)">Události</button>
+      </div>
+
+      <div id="p-region" class="panel active">
+        <div class="card">
+          <h2 id="selName">Vyber území</h2>
+          <div id="selInfo" class="small">Klikni na oblast na mapě. Žlutě označená území jsou sousední cíle, které můžeš dobývat.</div>
+          <div id="selActions"></div>
+        </div>
+      </div>
+
+      <div id="p-realm" class="panel">
+        <div class="card">
+          <h2>Nekropole Gariel</h2>
+          <div id="realmInfo"></div>
+          <button class="btn" onclick="trainArmy()">Cvičit armádu</button>
+          <button class="btn secondary" onclick="saveGame(true)">Uložit</button>
+          <button class="btn red" onclick="resetGame()">Nová hra</button>
+        </div>
+      </div>
+
+      <div id="p-diplo" class="panel">
+        <div class="card">
+          <h2>Diplomacie</h2>
+          <div id="diploInfo"></div>
+        </div>
+      </div>
+
+      <div id="p-log" class="panel">
+        <div class="card">
+          <h2>Události světa</h2>
+          <div id="log" class="log"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const SAVE_KEY = "dk_empires_true_map_v1";
+
+const factions = {
+  player:{id:"player", name:"Gariel", cls:"player", icon:"☠️"},
+  neutral:{id:"neutral", name:"Neutrální", cls:"neutral", icon:"⚪"},
+  red:{id:"red", name:"Rudá horda", cls:"red", icon:"🟥", relation:-20, ally:false, army:180},
+  green:{id:"green", name:"Lesní království", cls:"green", icon:"🟩", relation:15, ally:false, army:140},
+  purple:{id:"purple", name:"Kult Prázdnoty", cls:"purple", icon:"🟪", relation:-35, ally:false, army:220}
+};
+
+const regionsBase = [
+  {id:0,name:"Nekropole Gariel",x:250,y:235,type:"capital",owner:"player",power:75,income:{gold:4,wood:3},neighbors:[1,4,5]},
+  {id:1,name:"Mrazivé pole",x:455,y:190,type:"mixed",owner:"neutral",power:45,income:{gold:3,wood:2},neighbors:[0,2,5,6]},
+  {id:2,name:"Stříbrný důl",x:660,y:160,type:"gold",owner:"red",power:80,income:{gold:9,wood:0},neighbors:[1,3,6,7]},
+  {id:3,name:"Rudá pevnost",x:900,y:185,type:"fort",owner:"red",power:150,income:{gold:6,wood:3},neighbors:[2,7,8]},
+  {id:4,name:"Černý les",x:190,y:430,type:"wood",owner:"neutral",power:55,income:{gold:0,wood:9},neighbors:[0,5,9]},
+  {id:5,name:"Staré ruiny",x:430,y:415,type:"mixed",owner:"neutral",power:70,income:{gold:4,wood:4},neighbors:[0,1,4,6,9,10]},
+  {id:6,name:"Ledový průsmyk",x:650,y:380,type:"fort",owner:"neutral",power:95,income:{gold:3,wood:3},neighbors:[1,2,5,7,10,11]},
+  {id:7,name:"Krvavý lom",x:875,y:390,type:"gold",owner:"red",power:115,income:{gold:11,wood:0},neighbors:[2,3,6,8,11,12]},
+  {id:8,name:"Orčí tábor",x:1110,y:360,type:"fort",owner:"red",power:170,income:{gold:5,wood:5},neighbors:[3,7,12]},
+  {id:9,name:"Hluboký hvozd",x:250,y:660,type:"wood",owner:"green",power:90,income:{gold:0,wood:12},neighbors:[4,5,10,13]},
+  {id:10,name:"Elfí hranice",x:520,y:650,type:"wood",owner:"green",power:120,income:{gold:2,wood:10},neighbors:[5,6,9,11,13,14]},
+  {id:11,name:"Morová cesta",x:760,y:635,type:"mixed",owner:"neutral",power:130,income:{gold:6,wood:6},neighbors:[6,7,10,12,14,15]},
+  {id:12,name:"Popelavá brána",x:1010,y:625,type:"fort",owner:"purple",power:180,income:{gold:7,wood:4},neighbors:[7,8,11,15]},
+  {id:13,name:"Zelená citadela",x:390,y:865,type:"fort",owner:"green",power:185,income:{gold:4,wood:9},neighbors:[9,10,14]},
+  {id:14,name:"Zlaté močály",x:655,y:870,type:"gold",owner:"neutral",power:165,income:{gold:14,wood:2},neighbors:[10,11,13,15,16]},
+  {id:15,name:"Chrám prázdnoty",x:925,y:855,type:"fort",owner:"purple",power:240,income:{gold:8,wood:5},neighbors:[11,12,14,16,17]},
+  {id:16,name:"Křišťálová jeskyně",x:1180,y:825,type:"gold",owner:"purple",power:210,income:{gold:16,wood:0},neighbors:[14,15,17]},
+  {id:17,name:"Ledový trůn",x:1400,y:690,type:"capital",owner:"purple",power:330,income:{gold:12,wood:8},neighbors:[15,16]},
+];
+
+let game = {
+  gold:260, wood:220, army:95, selected:0, log:[], regions:JSON.parse(JSON.stringify(regionsBase)),
+  factions:JSON.parse(JSON.stringify(factions)), tick:0
+};
+
+function fmt(n){return Math.floor(n).toLocaleString("cs-CZ")}
+function owned(owner){return game.regions.filter(r=>r.owner===owner)}
+function playerRegions(){return owned("player")}
+function isFrontier(id){
+  const r = game.regions[id];
+  return r.owner !== "player" && r.neighbors.some(n=>game.regions[n].owner==="player");
+}
+function incomeFor(owner){
+  return owned(owner).reduce((s,r)=>({gold:s.gold+r.income.gold,wood:s.wood+r.income.wood}),{gold:0,wood:0});
+}
+function log(t){game.log.unshift(new Date().toLocaleTimeString("cs-CZ",{hour:"2-digit",minute:"2-digit"})+" – "+t);game.log=game.log.slice(0,80)}
+
+function drawRoad(a,b){
+  const world=document.getElementById("world");
+  const dx=b.x-a.x, dy=b.y-a.y;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  const angle=Math.atan2(dy,dx)*180/Math.PI;
+  const road=document.createElement("div");
+  road.className="road";
+  road.style.left=a.x+"px";road.style.top=a.y+"px";road.style.width=len+"px";road.style.transform=`rotate(${angle}deg)`;
+  world.appendChild(road);
+}
+
+function renderMap(){
+  const world=document.getElementById("world");
+  world.querySelectorAll(".region,.road,.armyMarker").forEach(e=>e.remove());
+
+  const done=new Set();
+  game.regions.forEach(r=>{
+    r.neighbors.forEach(n=>{
+      const key=[r.id,n].sort().join("-");
+      if(!done.has(key)){done.add(key);drawRoad(r,game.regions[n])}
+    });
+  });
+
+  game.regions.forEach(r=>{
+    const f=game.factions[r.owner] || game.factions.neutral;
+    const div=document.createElement("div");
+    const frontier=isFrontier(r.id);
+    const ally = f.ally ? " ally" : "";
+    div.className=`region ${f.cls}${frontier ? " frontier":""}${!frontier && r.owner!=="player" ? " locked":""}${ally}`;
+    div.style.left=r.x+"px";div.style.top=r.y+"px";
+    div.onclick=()=>{game.selected=r.id;render();};
+    div.innerHTML=`
+      <div>
+        <span class="capital">${typeIcon(r.type)}</span>
+        <div class="rName">${r.name}</div>
+        <div class="rMeta">🛡️ ${r.power} | ${f.icon} ${f.name}</div>
+      </div>`;
+    world.appendChild(div);
+  });
+
+  const cap=game.regions.find(r=>r.owner==="player") || game.regions[0];
+  const m=document.createElement("div");
+  m.className="armyMarker";
+  m.style.left=cap.x+"px";m.style.top=(cap.y-75)+"px";
+  m.textContent="⚔️";
+  world.appendChild(m);
+}
+
+function typeIcon(t){
+  return t==="gold"?"⛏️":t==="wood"?"🌲":t==="fort"?"🏰":t==="capital"?"👑":"🗺️";
+}
+
+function renderSelected(){
+  const r=game.regions[game.selected];
+  const f=game.factions[r.owner] || game.factions.neutral;
+  document.getElementById("selName").textContent=r.name;
+  document.getElementById("selInfo").innerHTML=`
+    <div class="badge">${typeIcon(r.type)} ${r.type}</div>
+    <div class="badge">👑 ${f.name}</div>
+    <div class="badge">🛡️ obrana ${r.power}</div>
+    <p>Příjem území: 🪙 ${r.income.gold}/tah, 🪵 ${r.income.wood}/tah</p>
+    <p>Sousedé: ${r.neighbors.map(n=>game.regions[n].name).join(", ")}</p>
+  `;
+  let actions="";
+  if(r.owner==="player"){
+    actions=`<button class="btn secondary" disabled>Toto území už patří tobě</button>`;
+  }else if(isFrontier(r.id)){
+    actions+=`<button class="btn red" onclick="attackRegion(${r.id})">Dobýt území</button>`;
+    if(r.owner!=="neutral"){
+      actions+=`<button class="btn green" onclick="proposeAlliance('${r.owner}')">Navrhnout alianci vlastníkovi</button>`;
+    }
+  }else{
+    actions=`<button class="btn secondary" disabled>Nejdřív dobyj sousední území</button>`;
+  }
+  document.getElementById("selActions").innerHTML=actions;
+}
+
+function renderRealm(){
+  const inc=incomeFor("player");
+  document.getElementById("realmInfo").innerHTML=`
+    <p>Tvá říše vlastní <b>${playerRegions().length}</b> území.</p>
+    <p>Příjem za tah: 🪙 <b>${inc.gold}</b>, 🪵 <b>${inc.wood}</b></p>
+    <p>Armáda: <b>${fmt(game.army)}</b></p>
+    <p class="small">Ekonomika už nestojí na vylepšování dolu. Více zlata a dřeva získáš hlavně dobýváním dalších regionů.</p>
+  `;
+}
+
+function renderDiplo(){
+  const box=document.getElementById("diploInfo");
+  box.innerHTML="";
+  ["red","green","purple"].forEach(id=>{
+    const f=game.factions[id];
+    const lands=owned(id).length;
+    box.innerHTML += `
+      <div class="card">
+        <h3>${f.icon} ${f.name}</h3>
+        <div>Vztah: <b>${f.relation}</b> ${f.ally ? '<span class="badge">Aliance</span>' : ''}</div>
+        <div>Armáda: <b>${fmt(f.army)}</b></div>
+        <div>Území: <b>${lands}</b></div>
+        <button class="btn green" onclick="proposeAlliance('${id}')">Navrhnout alianci</button>
+        <button class="btn red" onclick="declareWar('${id}')">Vyhlásit válku</button>
+      </div>`;
+  });
+}
+
+function render(){
+  const inc=incomeFor("player");
+  document.getElementById("gold").textContent=fmt(game.gold);
+  document.getElementById("wood").textContent=fmt(game.wood);
+  document.getElementById("army").textContent=fmt(game.army);
+  document.getElementById("lands").textContent=playerRegions().length;
+  document.getElementById("income").textContent=`${inc.gold}/${inc.wood}`;
+  renderMap(); renderSelected(); renderRealm(); renderDiplo();
+  document.getElementById("log").innerHTML=game.log.map(x=>`<div>${x}</div>`).join("") || "<div>Svět čeká na první tah.</div>";
+}
+
+function showPanel(id,btn){
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  document.getElementById("p-"+id).classList.add("active");
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  btn.classList.add("active");
+}
+
+function attackRegion(id){
+  const r=game.regions[id];
+  if(!isFrontier(id)){log("Nemůžeš útočit na území, které nesousedí s tvojí říší.");render();return}
+  const cost=Math.max(15,Math.floor(r.power*.32));
+  if(game.army < r.power){
+    game.army=Math.max(0,game.army-cost);
+    log("Prohrál jsi bitvu o "+r.name+". Ztratil jsi část armády.");
+    render();saveGame();return;
+  }
+  game.army-=cost;
+  if(r.owner!=="neutral" && game.factions[r.owner]){
+    game.factions[r.owner].relation-=35;
+    game.factions[r.owner].ally=false;
+  }
+  r.owner="player";
+  r.power=Math.floor(r.power*1.08);
+  log("Dobyl jsi území "+r.name+". Spadá pod vládu Gariel.");
+  game.selected=id;
+  checkVictory();
+  render();saveGame();
+}
+
+function trainArmy(){
+  const g=80,w=45;
+  if(game.gold<g || game.wood<w){log("Nemáš dost surovin na výcvik armády.");render();return}
+  game.gold-=g;game.wood-=w;game.army+=35;
+  log("Vytrénoval jsi nové jednotky pro armádu Gariel.");
+  render();saveGame();
+}
+
+function proposeAlliance(id){
+  const f=game.factions[id];
+  if(!f){return}
+  const sharedBorder=game.regions.some(r=>r.owner==="player" && r.neighbors.some(n=>game.regions[n].owner===id));
+  const benefit = sharedBorder ? 25 : 0;
+  const chance = f.relation + benefit + playerRegions().length*2 - owned(id).length;
+  if(chance>=25){
+    f.ally=true; f.relation+=20;
+    log("Vznikla aliance s frakcí "+f.name+".");
+  }else{
+    f.relation-=5;
+    log(f.name+" odmítá alianci. Musí z toho mít větší výhodu.");
+  }
+  render();saveGame();
+}
+
+function declareWar(id){
+  const f=game.factions[id];
+  if(!f)return;
+  f.ally=false;f.relation=-100;
+  log("Vyhlásil jsi válku frakci "+f.name+".");
+  render();saveGame();
+}
+
+function aiExpand(id){
+  const f=game.factions[id];
+  if(!f || owned(id).length===0)return;
+  const options=[];
+  owned(id).forEach(r=>r.neighbors.forEach(n=>{
+    const target=game.regions[n];
+    if(target.owner!==id && target.owner!=="player" && !(game.factions[target.owner]||{}).ally){
+      options.push(target);
+    }
+  }));
+  if(options.length===0)return;
+  const target=options[Math.floor(Math.random()*options.length)];
+  if(f.army>target.power){
+    f.army-=Math.floor(target.power*.25);
+    target.owner=id;
+    log(f.name+" obsadili území "+target.name+".");
+  }
+}
+
+function aiAttackPlayer(id){
+  const f=game.factions[id];
+  if(!f || f.ally)return;
+  const options=[];
+  owned(id).forEach(r=>r.neighbors.forEach(n=>{
+    const target=game.regions[n];
+    if(target.owner==="player") options.push(target);
+  }));
+  if(options.length===0)return;
+  const target=options[Math.floor(Math.random()*options.length)];
+  if(f.army>target.power+game.army*.25){
+    f.army-=Math.floor(target.power*.2);
+    game.army=Math.max(0,game.army-25);
+    target.owner=id;
+    log(f.name+" dobyli tvoje území "+target.name+"!");
+  }else{
+    f.army=Math.max(0,f.army-35);
+    log("Odrazil jsi útok frakce "+f.name+" na "+target.name+".");
+  }
+}
+
+function aiTurn(){
+  game.tick++;
+  const inc=incomeFor("player");
+  game.gold+=inc.gold;game.wood+=inc.wood;
+
+  ["red","green","purple"].forEach(id=>{
+    const f=game.factions[id];
+    const incF=incomeFor(id);
+    f.army += Math.floor((incF.gold+incF.wood)/7)+8;
+    if(Math.random()<0.35) aiExpand(id);
+    if(Math.random()<0.18) aiAttackPlayer(id);
+    if(Math.random()<0.12 && !f.ally) f.relation += Math.floor(Math.random()*7)-3;
+  });
+  render();saveGame();
+}
+
+function checkVictory(){
+  const nonPlayer=game.regions.filter(r=>r.owner!=="player" && r.owner!=="neutral").length;
+  if(nonPlayer===0) log("Gariel ovládla všechny velké frakce světa.");
+}
+
+function saveGame(manual=false){
+  localStorage.setItem(SAVE_KEY,JSON.stringify(game));
+  if(manual){log("Hra uložena.");render();}
+}
+function loadGame(){
+  const raw=localStorage.getItem(SAVE_KEY);
+  if(raw){
+    try{game=JSON.parse(raw)}catch(e){}
+  }else{
+    log("Začínáš jen s malou nekropolí. Dobývej sousední území a rozšiř říši.");
+  }
+  render();
+  setTimeout(()=>{document.getElementById("viewport").scrollTo(80,80)},100);
+}
+function resetGame(){
+  if(confirm("Opravdu začít novou hru?")){
+    localStorage.removeItem(SAVE_KEY);
+    location.reload();
+  }
+}
+
+loadGame();
+setInterval(aiTurn,6000);
+</script>
+</body>
+</html>
