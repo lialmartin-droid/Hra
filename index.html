@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Death Knight Empires – Turn Based</title>
+<style>
+body{margin:0;background:#0b1220;color:#e5eefc;font-family:Arial}
+header{background:#111827;padding:12px;text-align:center;font-size:24px;font-weight:bold;border-bottom:2px solid #2563eb}
+.top{display:flex;justify-content:space-around;background:#0f172a;padding:10px;position:sticky;top:0;z-index:10}
+.box{text-align:center}
+.box b{display:block;font-size:18px}
+.main{display:grid;grid-template-columns:1fr 340px;height:calc(100vh - 108px)}
+.mapWrap{overflow:auto;background:#07101d}
+.map{position:relative;width:1600px;height:1000px;background:linear-gradient(135deg,#0f172a,#111827)}
+.region{
+position:absolute;width:140px;height:100px;border-radius:40%;
+display:flex;align-items:center;justify-content:center;text-align:center;
+padding:8px;border:3px solid rgba(255,255,255,.2);cursor:pointer;
+transform:translate(-50%,-50%);font-size:13px;font-weight:bold;
+}
+.player{background:#1d4ed8}
+.enemy{background:#991b1b}
+.neutral{background:#374151}
+.selected{box-shadow:0 0 20px #facc15}
+.army{
+position:absolute;width:38px;height:38px;border-radius:50%;
+display:flex;align-items:center;justify-content:center;
+font-size:18px;font-weight:bold;transform:translate(-50%,-50%);
+border:2px solid white
+}
+.playerArmy{background:#60a5fa;color:black}
+.enemyArmy{background:#f87171;color:black}
+.road{
+position:absolute;height:8px;background:rgba(120,83,45,.4);
+transform-origin:left center;border-radius:10px
+}
+.side{overflow:auto;background:#111827;border-left:1px solid #334155;padding:10px}
+.card{background:#172033;border-radius:14px;padding:12px;margin-bottom:10px}
+button{
+width:100%;padding:10px;border:none;border-radius:10px;
+background:#2563eb;color:white;font-weight:bold;margin-top:8px
+}
+.log{max-height:220px;overflow:auto;font-size:12px}
+.log div{padding:4px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+</style>
+</head>
+<body>
+
+<header>Death Knight Empires – Tahová strategie</header>
+
+<div class="top">
+<div class="box">🪙<b id="gold">0</b>Zlato</div>
+<div class="box">🪵<b id="wood">0</b>Dřevo</div>
+<div class="box">⚔️<b id="armies">0</b>Armády</div>
+<div class="box">🌍<b id="lands">0</b>Území</div>
+</div>
+
+<div class="main">
+<div class="mapWrap">
+<div class="map" id="map"></div>
+</div>
+
+<div class="side">
+<div class="card">
+<h2>Vybrané území</h2>
+<div id="selectedInfo">Klikni na území.</div>
+<div id="actions"></div>
+</div>
+
+<div class="card">
+<h2>Armády</h2>
+<div id="armyList"></div>
+<button onclick="createArmy()">Vytvořit novou armádu (100 zlata)</button>
+</div>
+
+<div class="card">
+<h2>Tah</h2>
+<button onclick="nextTurn()">Ukončit tah</button>
+</div>
+
+<div class="card">
+<h2>Události</h2>
+<div class="log" id="log"></div>
+</div>
+</div>
+</div>
+
+<script>
+const regions = [
+{id:0,name:"Nekropole",x:220,y:220,owner:"player",power:40,income:{gold:5,wood:5},neighbors:[1,3]},
+{id:1,name:"Ledová pole",x:470,y:200,owner:"neutral",power:30,income:{gold:4,wood:2},neighbors:[0,2,4]},
+{id:2,name:"Rudý důl",x:760,y:180,owner:"enemy",power:55,income:{gold:8,wood:1},neighbors:[1,5]},
+{id:3,name:"Temný les",x:240,y:500,owner:"neutral",power:35,income:{gold:1,wood:7},neighbors:[0,4,6]},
+{id:4,name:"Ruiny",x:520,y:470,owner:"neutral",power:50,income:{gold:4,wood:4},neighbors:[1,3,5,7]},
+{id:5,name:"Orčí pevnost",x:820,y:460,owner:"enemy",power:80,income:{gold:6,wood:5},neighbors:[2,4,8]},
+{id:6,name:"Elfí hvozd",x:250,y:760,owner:"enemy",power:75,income:{gold:2,wood:10},neighbors:[3,7]},
+{id:7,name:"Morová cesta",x:570,y:760,owner:"neutral",power:65,income:{gold:5,wood:5},neighbors:[4,6,8]},
+{id:8,name:"Ledový trůn",x:930,y:740,owner:"enemy",power:120,income:{gold:10,wood:8},neighbors:[5,7]}
+];
+
+let game = {
+gold:300,
+wood:220,
+selected:null,
+turn:1,
+log:[],
+armies:[
+{id:1,owner:"player",region:0,power:70,moved:false},
+{id:2,owner:"enemy",region:5,power:90,moved:false},
+{id:3,owner:"enemy",region:8,power:130,moved:false}
+]
+};
+
+function log(text){
+game.log.unshift("Tah "+game.turn+": "+text);
+game.log = game.log.slice(0,60);
+}
+
+function ownedRegions(owner){
+return regions.filter(r=>r.owner===owner);
+}
+
+function income(owner){
+let g=0,w=0;
+ownedRegions(owner).forEach(r=>{
+g+=r.income.gold;
+w+=r.income.wood;
+});
+return {gold:g,wood:w};
+}
+
+function drawRoad(a,b){
+const map=document.getElementById("map");
+const dx=b.x-a.x;
+const dy=b.y-a.y;
+const len=Math.sqrt(dx*dx+dy*dy);
+const angle=Math.atan2(dy,dx)*180/Math.PI;
+
+const road=document.createElement("div");
+road.className="road";
+road.style.left=a.x+"px";
+road.style.top=a.y+"px";
+road.style.width=len+"px";
+road.style.transform=`rotate(${angle}deg)`;
+
+map.appendChild(road);
+}
+
+function render(){
+document.getElementById("gold").innerText=game.gold;
+document.getElementById("wood").innerText=game.wood;
+document.getElementById("armies").innerText=game.armies.filter(a=>a.owner==="player").length;
+document.getElementById("lands").innerText=ownedRegions("player").length;
+
+const map=document.getElementById("map");
+map.innerHTML="";
+
+const done=new Set();
+
+regions.forEach(r=>{
+r.neighbors.forEach(n=>{
+const key=[r.id,n].sort().join("-");
+if(!done.has(key)){
+done.add(key);
+drawRoad(r,regions[n]);
+}
+});
+});
+
+regions.forEach(region=>{
+const div=document.createElement("div");
+
+let cls="neutral";
+if(region.owner==="player") cls="player";
+if(region.owner==="enemy") cls="enemy";
+
+div.className="region "+cls;
+
+if(game.selected===region.id)
+div.classList.add("selected");
+
+div.style.left=region.x+"px";
+div.style.top=region.y+"px";
+
+div.innerHTML=`
+<div>
+${region.name}<br>
+🛡️ ${region.power}
+</div>
+`;
+
+div.onclick=()=>{
+game.selected=region.id;
+renderSelected();
+render();
+};
+
+map.appendChild(div);
+});
+
+game.armies.forEach(army=>{
+const region=regions.find(r=>r.id===army.region);
+
+const div=document.createElement("div");
+div.className="army "+(army.owner==="player" ? "playerArmy":"enemyArmy");
+
+div.style.left=(region.x+40)+"px";
+div.style.top=(region.y-35)+"px";
+
+div.innerText=army.power;
+
+map.appendChild(div);
+});
+
+renderSelected();
+
+document.getElementById("armyList").innerHTML=
+game.armies
+.filter(a=>a.owner==="player")
+.map(a=>{
+const region=regions.find(r=>r.id===a.region);
+return `
+<div class="card">
+⚔️ Armáda #${a.id}<br>
+Síla: ${a.power}<br>
+Pozice: ${region.name}<br>
+${a.moved ? "Tah dokončen":"Může se pohybovat"}
+</div>
+`;
+}).join("");
+
+document.getElementById("log").innerHTML=
+game.log.map(l=>"<div>"+l+"</div>").join("");
+}
+
+function renderSelected(){
+const info=document.getElementById("selectedInfo");
+const actions=document.getElementById("actions");
+
+if(game.selected===null){
+info.innerHTML="Klikni na území.";
+actions.innerHTML="";
+return;
+}
+
+const region=regions.find(r=>r.id===game.selected);
+
+info.innerHTML=`
+<b>${region.name}</b><br>
+Vlastník: ${region.owner}<br>
+Síla: ${region.power}<br>
+Příjem: 🪙 ${region.income.gold} / 🪵 ${region.income.wood}
+`;
+
+actions.innerHTML="";
+
+game.armies
+.filter(a=>a.owner==="player" && !a.moved)
+.forEach(army=>{
+
+const current=regions.find(r=>r.id===army.region);
+
+if(current.neighbors.includes(region.id) || current.id===region.id){
+
+const btn=document.createElement("button");
+
+if(current.id===region.id)
+btn.innerText=`Vybraná armáda #${army.id}`;
+else
+btn.innerText=`Přesunout armádu #${army.id}`;
+
+btn.onclick=()=>moveArmy(army.id,region.id);
+
+actions.appendChild(btn);
+}
+});
+}
+
+function moveArmy(id,targetId){
+const army=game.armies.find(a=>a.id===id);
+const target=regions.find(r=>r.id===targetId);
+
+if(army.region===targetId) return;
+
+army.region=targetId;
+army.moved=true;
+
+log("Armáda #"+id+" se přesunula do "+target.name);
+
+if(target.owner!=="player"){
+battle(army,target);
+}
+
+render();
+}
+
+function battle(army,region){
+
+if(army.power>=region.power){
+
+army.power-=Math.floor(region.power*0.3);
+
+region.owner="player";
+
+game.gold+=50;
+game.wood+=30;
+
+log("Dobyl jsi území "+region.name);
+
+}else{
+
+army.power-=Math.floor(region.power*0.5);
+
+log("Armáda #"+army.id+" prohrála bitvu o "+region.name);
+
+if(army.power<=0){
+game.armies=game.armies.filter(a=>a.id!==army.id);
+log("Armáda byla zničena.");
+}
+}
+}
+
+function createArmy(){
+
+if(game.gold<100){
+log("Nemáš dost zlata.");
+render();
+return;
+}
+
+const capital=regions.find(r=>r.owner==="player");
+
+game.gold-=100;
+
+game.armies.push({
+id:Date.now(),
+owner:"player",
+region:capital.id,
+power:60,
+moved:true
+});
+
+log("Vytvořena nová armáda.");
+
+render();
+}
+
+function enemyTurn(){
+
+game.armies
+.filter(a=>a.owner==="enemy")
+.forEach(army=>{
+
+const current=regions.find(r=>r.id===army.region);
+
+const targets=current.neighbors
+.map(id=>regions.find(r=>r.id===id));
+
+const possible=targets.filter(r=>r.owner!=="enemy");
+
+if(possible.length){
+
+const target=possible[Math.floor(Math.random()*possible.length)];
+
+army.region=target.id;
+
+if(army.power>=target.power){
+
+army.power-=Math.floor(target.power*0.25);
+
+target.owner="enemy";
+
+log("Nepřátelé dobyli "+target.name);
+
+}else{
+
+army.power-=20;
+
+log("Nepřátelský útok na "+target.name+" selhal");
+}
+}
+});
+}
+
+function nextTurn(){
+
+const inc=income("player");
+
+game.gold+=inc.gold;
+game.wood+=inc.wood;
+
+game.armies.forEach(a=>a.moved=false);
+
+enemyTurn();
+
+game.turn++;
+
+render();
+}
+
+render();
+</script>
+
+</body>
+</html>
